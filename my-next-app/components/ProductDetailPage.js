@@ -1,31 +1,49 @@
-import React from 'react';
+
+"use client"
+
+import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
-import ProductGallery from './ProductGallery';
+import ProductGallery from '../components/ProductGallery';
 import Image from 'next/image';
 import Head from 'next/head';
+import { db } from '../pages/api/firebase'; // Ensure this path is correct
+import { doc, getDoc } from 'firebase/firestore'; // Import Firestore functions
 
-/**
- * ProductDetailPage component displays detailed information about a specific product.
- *
- * @param {Object} props - The component props.
- * @param {Object} props.product - The product object containing details for the specific product.
- * @param {string} props.product.id - The unique identifier for the product.
- * @param {string} props.product.title - The title of the product.
- * @param {Array<string>} props.product.images - An array of image URLs for the product.
- * @param {number} props.product.price - The price of the product.
- * @param {string} props.product.category - The category of the product.
- * @param {number} props.product.rating - The average rating of the product.
- * @param {string} props.product.description - A detailed description of the product.
- * @param {Array<string>} props.product.tags - An array of tags associated with the product.
- * @param {number} props.product.stock - The number of available items in stock.
- * @returns {JSX.Element} The rendered ProductDetailPage component.
- */
-export default function ProductDetailPage({ product }) {
+export default function ProductDetailPage() {
   const router = useRouter();
+  const { id } = router.query; // Get the product ID from the URL
+  const [product, setProduct] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  if (router.isFallback) {
-    return <div>Loading...</div>;
-  }
+  useEffect(() => {
+    const fetchProduct = async () => {
+      if (id) {
+        try {
+          console.log(`Fetching product with ID: ${id}`); // Log the ID
+          const productRef = doc(db, 'products', id); // Get reference to the product
+          const productDoc = await getDoc(productRef); // Fetch the product data
+
+          if (productDoc.exists()) {
+            setProduct({ id: productDoc.id, ...productDoc.data() });
+          } else {
+            setError('Product not found');
+          }
+        } catch (err) {
+          console.error('Error fetching product:', err); // Log any errors
+          setError('Error fetching product');
+        } finally {
+          setLoading(false);
+        }
+      }
+    };
+
+    fetchProduct();
+  }, [id]);
+
+  // Show loading state or error message
+  if (loading) return <div>Loading...</div>;
+  if (error) return <div>{error}</div>;
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -34,12 +52,12 @@ export default function ProductDetailPage({ product }) {
         <meta name="description" content={product.description} />
         <meta property="og:title" content={product.title} />
         <meta property="og:description" content={product.description} />
-        <meta property="og:image" content={product.images[0] ? product.images[0].src : '/placeholder-image.jpg'} />
+        <meta property="og:image" content={product.images[0] ? product.images[0] : '/placeholder-image.jpg'} />
         <meta property="og:url" content={`https://yourwebsite.com/products/${product.id}`} />
         <meta name="twitter:card" content="summary_large_image" />
         <meta name="twitter:title" content={product.title} />
         <meta name="twitter:description" content={product.description} />
-        <meta name="twitter:image" content={product.images[0] ? product.images[0].src : '/placeholder-image.jpg'} />
+        <meta name="twitter:image" content={product.images[0] ? product.images[0] : '/placeholder-image.jpg'} />
       </Head>
 
       <button
@@ -82,9 +100,3 @@ export default function ProductDetailPage({ product }) {
     </div>
   );
 }
-
-
-
-// Dynamic Meta Tags: The title and description meta tags are dynamically set based on the product's details.
-// Open Graph Tags: These help with social media sharing.
-// Twitter Cards: Enhance visibility when shared on Twitter.
