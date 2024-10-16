@@ -4,7 +4,7 @@ import { useParams, useRouter } from "next/navigation"; // Next.js hooks
 import { useState, useEffect } from "react"; // React hooks for state management
 import Image from "next/image"; // Optimized Image component
 import { db } from "../../../pages/api/firebase"; // Import Firebase setup
-import { collection, addDoc, getDocs, query, where } from "firebase/firestore";
+import { collection, addDoc, getDocs, query, where, updateDoc, deleteDoc, doc } from "firebase/firestore";
 
 const API_URL = "https://next-ecommerce-api.vercel.app/products";
 
@@ -18,6 +18,7 @@ export default function ProductDetail() {
   const [reviews, setReviews] = useState([]);
   const [dateSortOption, setDateSortOption] = useState("");
   const [ratingSortOption, setRatingSortOption] = useState("");
+  const [editingReviewId, setEditingReviewId] = useState(null); // To track review being edited
 
   // New review form state
   const [newReview, setNewReview] = useState({
@@ -31,7 +32,7 @@ export default function ProductDetail() {
     setNewReview({ ...newReview, [name]: value });
   };
 
-  // Submit new review to Firebase
+  // Submit new review or update an existing one
   const handleReviewSubmit = async (e) => {
     e.preventDefault();
     const newReviewWithDate = {
@@ -41,14 +42,42 @@ export default function ProductDetail() {
     };
 
     try {
-      await addDoc(collection(db, "reviews"), {
-        ...newReviewWithDate,
-        productId: id,
-      });
-      setReviews([newReviewWithDate, ...reviews]);
+      if (editingReviewId) {
+        // Update existing review
+        const reviewRef = doc(db, "reviews", editingReviewId);
+        await updateDoc(reviewRef, newReviewWithDate);
+        setReviews((prevReviews) =>
+          prevReviews.map((r) => (r.id === editingReviewId ? { ...r, ...newReviewWithDate } : r))
+        );
+        setEditingReviewId(null); // Exit edit mode
+      } else {
+        // Add new review
+        const docRef = await addDoc(collection(db, "reviews"), {
+          ...newReviewWithDate,
+          productId: id,
+        });
+        setReviews([{ ...newReviewWithDate, id: docRef.id }, ...reviews]);
+      }
+
       setNewReview({ email: "", rating: 0, comment: "" });
     } catch (err) {
-      console.error("Error adding review: ", err);
+      console.error("Error adding or updating review: ", err);
+    }
+  };
+
+  // Start editing a review
+  const handleEditReview = (review) => {
+    setNewReview({ email: review.email, rating: review.rating, comment: review.comment });
+    setEditingReviewId(review.id);
+  };
+
+  // Delete review from Firebase and remove from state
+  const handleDeleteReview = async (reviewId) => {
+    try {
+      await deleteDoc(doc(db, "reviews", reviewId));
+      setReviews((prevReviews) => prevReviews.filter((r) => r.id !== reviewId));
+    } catch (err) {
+      console.error("Error deleting review: ", err);
     }
   };
 
@@ -170,7 +199,7 @@ export default function ProductDetail() {
       </div>
 
       <div className="mt-8">
-        <h3 className="text-2xl font-semibold mb-4">Add a Review</h3>
+        <h3 className="text-2xl font-semibold mb-4">{editingReviewId ? "Edit Your Review" : "Add a Review"}</h3>
         <form onSubmit={handleReviewSubmit} className="mb-6">
           <div className="flex flex-col space-y-2">
             <input
@@ -203,8 +232,17 @@ export default function ProductDetail() {
               required
             ></textarea>
             <button type="submit" className="bg-blue-500 text-white px-4 py-2 rounded">
-              Submit Review
+              {editingReviewId ? "Update Review" : "Submit Review"}
             </button>
+            {editingReviewId && (
+              <button
+                type="button"
+                onClick={() => setEditingReviewId(null)}
+                className="bg-gray-300 text-black px-4 py-2 rounded mt-2"
+              >
+                Cancel Edit
+              </button>
+            )}
           </div>
         </form>
 
@@ -225,11 +263,25 @@ export default function ProductDetail() {
         {reviews.length === 0 ? (
           <p>No reviews yet. Be the first to add a review!</p>
         ) : (
-          reviews.map((review, index) => (
-            <div key={index} className="p-4 border-b">
+          reviews.map((review) => (
+            <div key={review.id} className="p-4 border-b">
               <p className="text-sm text-gray-500">{review.email} - {new Date(review.date).toLocaleString()}</p>
               <p className="text-yellow-500">Rating: {review.rating}</p>
               <p className="text-gray-700">{review.comment}</p>
+              <div className="mt-2">
+                <button
+                  onClick={() => handleEditReview(review)}
+                  className="text-blue-500 mr-4"
+                >
+                  Edit
+                </button>
+                <button
+                  onClick={() => handleDeleteReview(review.id)}
+                  className="text-red-500"
+                >
+                  Delete
+                </button>
+              </div>
             </div>
           ))
         )}
