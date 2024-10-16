@@ -5,19 +5,17 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import ProductCard from './ProductCard';
 import SearchFilterSort from './SearchFilterSort';
 
+import { db } from '../pages/api/firebase'; // Import Firestore from the centralized file
+import { collection, getDocs, query, where, orderBy, limit, startAfter } from 'firebase/firestore';
+
 const PRODUCTS_PER_PAGE = 20;
 
-/**
- * ProductsList component fetches and displays a list of products with
- * search, filter, and pagination functionalities.
- *
- * @returns {JSX.Element} The rendered ProductsList component.
- */
 export default function ProductsList() {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [categories, setCategories] = useState([]);
+  const [lastVisible, setLastVisible] = useState(null);
   const searchParams = useSearchParams();
   const router = useRouter();
 
@@ -26,25 +24,20 @@ export default function ProductsList() {
     fetchProducts();
   }, [searchParams]);
 
-  /**
-   * Fetches product categories from the API.
-   * Sets the categories state with the fetched data.
-   */
   async function fetchCategories() {
     try {
-      const res = await fetch('https://next-ecommerce-api.vercel.app/categories');
-      if (!res.ok) throw new Error('Failed to fetch categories');
-      const data = await res.json();
-      setCategories(data);
+      const categoriesRef = collection(db, 'categories');
+      const docSnapshot = await getDocs(categoriesRef);
+      const categoriesData = docSnapshot.docs.map(doc => doc.data());
+
+      if (categoriesData.length > 0) {
+        setCategories(categoriesData[0].categories);
+      }
     } catch (err) {
-      console.error('Error fetching categories:', err);
+      console.error('Error fetching categories from Firestore:', err);
     }
   }
 
-  /**
-   * Fetches products based on search, category, sort, and pagination parameters.
-   * Updates the products state with the fetched data.
-   */
   async function fetchProducts() {
     setLoading(true);
     try {
@@ -52,34 +45,40 @@ export default function ProductsList() {
       const category = searchParams.get('category') || '';
       const sort = searchParams.get('sort') || '';
       const page = parseInt(searchParams.get('page') || '1', 10);
+      const productsRef = collection(db, 'products');
 
-      let url = `https://next-ecommerce-api.vercel.app/products?limit=${PRODUCTS_PER_PAGE}&skip=${(page - 1) * PRODUCTS_PER_PAGE}`;
-      
-      if (search) url += `&search=${search}`;
-      if (category) url += `&category=${category}`;
-      if (sort) {
-        const [field, order] = sort.split('_');
-        url += `&sort=${field}&order=${order}`;
+      let q = query(productsRef, limit(PRODUCTS_PER_PAGE));
+
+      if (search) {
+        q = query(productsRef, where('name', '>=', search), where('name', '<=', search + '\uf8ff'));
       }
 
-      const res = await fetch(url);
-      if (!res.ok) throw new Error('Failed to fetch products');
-      const data = await res.json();
-      setProducts(data);
+      if (category) {
+        q = query(productsRef, where('category', '==', category));
+      }
+
+      if (sort) {
+        const [field, order] = sort.split('_');
+        q = query(productsRef, orderBy(field, order === 'asc' ? 'asc' : 'desc'));
+      }
+
+      if (lastVisible && page > 1) {
+        q = query(productsRef, startAfter(lastVisible), limit(PRODUCTS_PER_PAGE));
+      }
+
+      const productSnapshot = await getDocs(q);
+      const productsData = productSnapshot.docs.map(doc => doc.data());
+
+      setProducts(productsData);
+      setLastVisible(productSnapshot.docs[productSnapshot.docs.length - 1]);
     } catch (err) {
-      console.error('Error fetching products:', err);
+      console.error('Error fetching products from Firestore:', err);
       setError('An error occurred while fetching products');
     } finally {
       setLoading(false);
     }
   }
 
-  /**
-   * Handles page change by updating the search parameters and triggering
-   * a re-fetch of products.
-   *
-   * @param {number} newPage - The new page number to navigate to.
-   */
   const handlePageChange = (newPage) => {
     const params = new URLSearchParams(searchParams);
     params.set('page', newPage.toString());

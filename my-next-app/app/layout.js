@@ -1,5 +1,6 @@
 import "./globals.css";
 import Head from "next/head";
+import Header from "../components/Header"; // Adjust the path as necessary
 
 export const metadata = {
   title: "Your Store Name",
@@ -23,7 +24,8 @@ export default function RootLayout({ children }) {
         <meta name="twitter:image" content="/path/to/your/image.jpg" />
       </Head>
       <body>
-        {children}
+        <Header /> {/* Include the Header component */}
+        <main className="container mx-auto">{children}</main> {/* Optional: Wrap children in a main container */}
       </body>
     </html>
   );

@@ -45,9 +45,6 @@ export default function Header() {
             <Link href="/auth?mode=signin" className="inline-flex items-center px-4 py-2 bg-gray-700 text-white rounded hover:bg-blue-600 transition">
               Sign In
             </Link>
-            <Link href="/auth?mode=signup" className="inline-flex items-center px-4 py-2 bg-gray-700 text-white rounded hover:bg-green-600 transition">
-              Sign Up
-            </Link>
           </>
         )}
       </nav>
