@@ -4,7 +4,7 @@ import { useParams, useRouter } from "next/navigation"; // Next.js hooks
 import { useState, useEffect } from "react"; // React hooks for state management
 import Image from "next/image"; // Optimized Image component
 import { db } from "../../../pages/api/firebase"; // Import Firebase setup
-import { collection, addDoc, getDocs, query, where, deleteDoc, doc, updateDoc } from "firebase/firestore";
+import { collection, addDoc, getDocs, query, where } from "firebase/firestore";
 
 const API_URL = "https://next-ecommerce-api.vercel.app/products";
 
@@ -52,14 +52,20 @@ export default function ProductDetail() {
     }
   };
 
-  // Fetch product details from the API
-  const fetchProduct = async () => {
+  // Fetch product details from the API and combine reviews from the product and Firebase
+  const fetchProductAndReviews = async () => {
     try {
       const res = await fetch(`${API_URL}/${id}`);
       if (!res.ok) throw new Error("Failed to fetch product");
       const data = await res.json();
       setProduct(data);
-      fetchReviews(id); // Fetch reviews for the product
+
+      const productReviews = data.reviews || [];
+
+      const firebaseReviews = await fetchReviews(id); // Fetch reviews from Firebase
+      const combinedReviews = [...productReviews, ...firebaseReviews]; // Combine both reviews
+      setReviews(combinedReviews);
+      
       setError(null);
     } catch (err) {
       setError(err.message);
@@ -75,9 +81,10 @@ export default function ProductDetail() {
       querySnapshot.forEach((doc) => {
         fetchedReviews.push({ ...doc.data(), id: doc.id });
       });
-      setReviews(fetchedReviews);
+      return fetchedReviews;
     } catch (err) {
       console.error("Error fetching reviews: ", err);
+      return [];
     }
   };
 
@@ -101,7 +108,7 @@ export default function ProductDetail() {
 
   useEffect(() => {
     if (!id) return;
-    fetchProduct();
+    fetchProductAndReviews();
   }, [id]);
 
   useEffect(() => {
@@ -222,7 +229,7 @@ export default function ProductDetail() {
             <div key={index} className="p-4 border-b">
               <p className="text-sm text-gray-500">{review.email} - {new Date(review.date).toLocaleString()}</p>
               <p className="text-yellow-500">Rating: {review.rating}</p>
-              <p>{review.comment}</p>
+              <p className="text-gray-700">{review.comment}</p>
             </div>
           ))
         )}
