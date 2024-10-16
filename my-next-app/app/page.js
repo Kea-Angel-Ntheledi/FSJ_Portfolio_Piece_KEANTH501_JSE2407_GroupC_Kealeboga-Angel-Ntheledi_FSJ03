@@ -12,7 +12,7 @@ export default function Home() {
   return (
     <main className="container mx-auto px-4">
       <Head>
-        <title>Home - Your Store Name</title>
+        <title>Home - BuyIt!</title>
         <meta name="description" content="Discover our range of products tailored just for you." />
         <meta property="og:title" content="Home - Your Store Name" />
         <meta property="og:description" content="Discover our range of products tailored just for you." />
